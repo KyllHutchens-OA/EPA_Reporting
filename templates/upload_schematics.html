@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="bg-card rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">Upload Schematics</h2>
+    <form method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Site selector -->
+      <div>
+        <label class="block text-gray-700 mb-2">Select Site</label>
+        <select name="site_id" required
+                class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+          <option value="">-- Select Site --</option>
+          {% for s in sites %}
+            <option value="{{ s.samplingpoint_id }}">{{ s.report_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <!-- File input -->
+      <div>
+        <label class="block text-gray-700 mb-2">Schematic File</label>
+        <input type="file" name="schematic" required
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <!-- Replace checkbox -->
+      <div class="md:col-span-2 flex items-center gap-2">
+        <input type="checkbox" name="replace" id="replace"
+               class="h-4 w-4 text-blue-600 focus:ring-blue-600">
+        <label for="replace" class="text-gray-700">Replace existing file if it exists</label>
+      </div>
+      <!-- Submit -->
+      <div class="md:col-span-2 text-right">
+        <button type="submit"
+                class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+          Upload
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-card rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold mb-4">Existing Schematics</h2>
+    <ul class="divide-y">
+      {% for fname in schematics %}
+        <li class="py-2 flex justify-between items-center">
+          <span>{{ fname }}</span>
+          <a href="{{ url_for('uploaded_file', filename=fname) }}"
+             class="text-blue-600 hover:underline">View</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endblock %}

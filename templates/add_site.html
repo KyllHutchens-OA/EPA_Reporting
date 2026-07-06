@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="bg-card rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">Add New Site</h2>
+    <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-gray-700 mb-2">Report Name</label>
+        <input type="text" name="report_name" required
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Location Type</label>
+        <input type="text" name="location_type"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Site Name (SAAM)</label>
+        <input type="text" name="saam_name"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">System Name (Waterscope)</label>
+        <input type="text" name="system_name"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-gray-700 mb-2">SamplingPoint ID of Final Effluent</label>
+        <input type="text" name="samplingpoint_id"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div class="md:col-span-2 text-right">
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+          Add Site
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-card rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold mb-4">Existing Sites</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-left">
+        <thead class="bg-bg">
+          <tr>
+            <th class="px-4 py-2 font-medium">Report Name</th>
+            <th class="px-4 py-2 font-medium">Location Type</th>
+            <th class="px-4 py-2 font-medium">SAAM Name</th>
+            <th class="px-4 py-2 font-medium">Waterscope Name</th>
+            <th class="px-4 py-2 font-medium">SamplingPoint ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sites %}
+            <tr class="hover:bg-gray-50">
+              <td class="border-t px-4 py-2">{{ s.report_name }}</td>
+              <td class="border-t px-4 py-2">{{ s.location_type }}</td>
+              <td class="border-t px-4 py-2">{{ s.saam_name }}</td>
+              <td class="border-t px-4 py-2">{{ s.system_name }}</td>
+              <td class="border-t px-4 py-2">{{ s.samplingpoint_id }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

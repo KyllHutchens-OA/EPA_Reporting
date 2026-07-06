@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block content %}
+  <div class="bg-card rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">Report &amp; Process Details</h2>
+    <form method="post" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-gray-700 mb-2">Report Name</label>
+        <select name="report_name" required
+                class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+          <option value="">Select Site</option>
+          {% for s in sites %}
+          <option value="{{ s.report_name }}">{{ s.report_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Site Name &amp; Address</label>
+        <input type="text" name="site_address"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Licence Number</label>
+        <input type="text" name="licence_number"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Certification</label>
+        <input type="text" name="certification"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Population Served</label>
+        <input type="text" name="population_served"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Hydraulic Design Capacity</label>
+        <input type="text" name="hydraulic_capacity"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Loading Design Capacity</label>
+        <input type="text" name="loading_capacity"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Primary Treatment</label>
+        <input type="text" name="primary_treatment"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Secondary Treatment</label>
+        <input type="text" name="secondary_treatment"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Disinfection</label>
+        <input type="text" name="disinfection"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Discharge</label>
+        <input type="text" name="discharge"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Sludge Treatment/Management</label>
+        <input type="text" name="sludge_treatment"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Effluent Discharge</label>
+        <input type="text" name="effluent_discharge"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Effluent Reuse</label>
+        <input type="text" name="effluent_reuse"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+
+      <!-- New Monitoring Targets -->
+      <div>
+        <label class="block text-gray-700 mb-2">BOD Internal Monitoring Target</label>
+        <input type="text" name="bod_internal_target"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+        <p class="text-gray-600 mt-1">Units: mg/L</p>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Ammonia as N Target</label>
+        <input type="text" name="ammonia_n_target"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+        <p class="text-gray-600 mt-1">Units: mg/L</p>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Suspended Solids Target</label>
+        <input type="text" name="suspended_solids_target"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+        <p class="text-gray-600 mt-1">Units: mg/L</p>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Total Nitrogen</label>
+        <input type="text" name="total_nitrogen"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+        <p class="text-gray-600 mt-1">Units: mg/L</p>
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Total Phosphorus</label>
+        <input type="text" name="total_phosphorus"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+        <p class="text-gray-600 mt-1">Units: mg/L</p>
+      </div>
+
+      <!-- New Monitoring Plan Fields -->
+      <div>
+        <label class="block text-gray-700 mb-2">Monitoring Plan Title</label>
+        <input type="text" name="monitoring_plan_title"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Monitoring Plan Approval Date</label>
+        <input type="date" name="monitoring_plan_approval_date"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Monitoring Plan Compliance</label>
+        <input type="text" name="monitoring_plan_compliance"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+      <div>
+        <label class="block text-gray-700 mb-2">Quality Assurance / Control</label>
+        <input type="text" name="quality_assurance_control"
+               class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-600">
+      </div>
+
+      <div class="md:col-span-2 text-right">
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+          Save Details
+        </button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

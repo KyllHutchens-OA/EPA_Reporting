@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="bg-card rounded-lg shadow p-8 mt-10 text-center">
+    <h2 class="text-3xl font-semibold mb-6">Welcome to EPA Annual Report Tool</h2>
+    <p class="mb-8 text-gray-600">Use the buttons below to navigate.</p>
+    <div class="flex flex-col sm:flex-row justify-center gap-4">
+      <a href="{{ url_for('add_site') }}" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">Add Site</a>
+      <a href="{{ url_for('upload_schematics') }}" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">Upload Schematics</a>
+      <a href="{{ url_for('report_process_details') }}" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">Report &amp; Process Details</a>
+      <a href="{{ url_for('run_report') }}" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">Run Report</a>
+    </div>
+  </div>
+{% endblock %}
