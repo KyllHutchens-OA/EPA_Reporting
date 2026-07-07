@@ -445,7 +445,6 @@ def write_site_information(writer, report_name, start_dt, end_dt):
 
     ws.set_column('A:A', 40)
     ws.set_column('B:B', 100)
-    title_cell_fmt = wb.add_format({'bold': True, 'font_size': 15})
     ws.write('A1', 'Site Information', title_cell_fmt)
     row = 2
 
@@ -1026,10 +1025,14 @@ def get_comments_data(report_name: str,
 
     # 6) Return only the three columns requested
     return df_long[['Quarter','Comment Type','Comment']]
-def get_site_incidents_data(report_name: str,
-                            start_date: datetime,
-                            end_date:   datetime) -> pd.DataFrame:
-
+def _load_filtered_incidents(report_name: str,
+                              start_date: datetime,
+                              end_date:   datetime) -> pd.DataFrame:
+    """
+    Shared filtering logic for site incidents: date range, site match, and
+    classification/TARP relevance. Keeps the 'TARP' column so callers that
+    need it (e.g. summary counts) don't have to re-filter from scratch.
+    """
     from report_functions import load_sites
 
     # 1) load all incidents, parse the 'Incident Date Time' column
@@ -1049,8 +1052,8 @@ def get_site_incidents_data(report_name: str,
 
     # 3) find this site’s SAAM Name via sitedata.csv
     sites    = load_sites()
-    saam = next((s['saam_name'] 
-                 for s in sites 
+    saam = next((s['saam_name']
+                 for s in sites
                  if s['report_name'] == report_name),
                 None)
 
@@ -1061,10 +1064,40 @@ def get_site_incidents_data(report_name: str,
     mask_cls  = df['Primary Incident Classification'].isin(valid_cls)
     mask_tarp = df['TARP'].notna() & df['TARP'].astype(str).str.strip().ne('')
     df = df[mask_cls | mask_tarp]
+    return df
+
+def get_site_incidents_data(report_name: str,
+                            start_date: datetime,
+                            end_date:   datetime) -> pd.DataFrame:
+
+    df = _load_filtered_incidents(report_name, start_date, end_date)
     df = df.drop(columns=['TARP', 'Incident Count'])
+
+    # the source 'Date' column is actually the incident's financial year
+    # (e.g. "2023-2024"), so label it accordingly rather than "Date"
+    df = df.rename(columns={'Date': 'FY'})
 
     # 4) return same columns / order as the source file
     return df
+
+def get_site_incidents_summary(report_name: str,
+                                start_date: datetime,
+                                end_date:   datetime) -> dict:
+    """
+    Counts of incidents by classification/TARP for the summary table at the
+    top of the Site Incidents sheet, over the same filtered set of incidents
+    shown in the table below it.
+    """
+    df = _load_filtered_incidents(report_name, start_date, end_date)
+    cls = df['Primary Incident Classification']
+    mask_tarp = df['TARP'].notna() & df['TARP'].astype(str).str.strip().ne('')
+
+    return {
+        'Priority Type 1': int((cls == 'Priority Type 1').sum()),
+        'Type 1':          int((cls == 'Type 1').sum()),
+        'Type 2':          int((cls == 'Type 2').sum()),
+        'TARP':            int(mask_tarp.sum()),
+    }
 def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
     required = {'FY', 'SAMPLING_POINT', 'REPORTED_NAME', 'DESCRIPTION'}
     file_path = os.path.join(DATA_DIR, '2324MonitoringProgram.csv')
