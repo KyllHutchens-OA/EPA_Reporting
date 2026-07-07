@@ -297,7 +297,7 @@ def run_report():
 
                     # Headers
                     fp_ws.write('A1', f'{report_name} WWTP', site_fmt)
-                    fp_ws.write('A2', f"{ys} / {ye} EPA Report", report_title_fmt)
+                    fp_ws.merge_range('A2:D2', f"{ys} / {ye} EPA Report", report_title_fmt)
 
                     # Table rows A3:A9 with merged B-D cells and borders
                     from report_functions import load_report_details
@@ -322,20 +322,20 @@ def run_report():
                             fp_ws.merge_range(row, 1, row, 3, value, info_fmt_with_border)
 
                     # Version History section
-                    fp_ws.write('A10', "Version History", report_title_fmt)
+                    fp_ws.merge_range('A10:D10', "Version History", report_title_fmt)
                     fp_ws.write_row(10, 0, ['Version', 'Date', 'Author', 'Comments'], info_fmt)
                     fp_ws.write_row(11, 0, ['0.1', '', 'Kyll Hutchens', 'Automatic Generation'], table_cell_fmt)
                     for i in range(2):
                         fp_ws.write_row(12 + i, 0, ['', '', '', ''], table_cell_fmt)
 
                     # Reviewers section
-                    fp_ws.write('A16', "Reviewers", report_title_fmt)
+                    fp_ws.merge_range('A16:D16', "Reviewers", report_title_fmt)
                     fp_ws.write_row(16, 0, ['Reviewer Name', 'Reviewer Role', 'Signature', 'Date'], info_fmt)
                     for i in range(1):
                         fp_ws.write_row(17 + i, 0, ['Ben Thwaites', 'Mgr Wastewater Treatment Operations', '', ''], table_cell_fmt)
 
                     # Approvers section
-                    fp_ws.write('A20', "Approvers", report_title_fmt)
+                    fp_ws.merge_range('A20:D20', "Approvers", report_title_fmt)
                     fp_ws.write_row(20, 0, ['Approver Name', 'Approver Role', 'Signature', 'Date'], info_fmt)
                     for i in range(1):
                         fp_ws.write_row(21 + i, 0, ['Angela Dewdney', 'Mgr Environmental Performance and Compliance', '', ''], table_cell_fmt)
@@ -692,14 +692,26 @@ def run_report():
                                 #     'format': sum_fmt_4dp
                                 # })
 
-                            row_cursor += 23  # blank line after each component
-                            
                             # Chart
                             img = tc_images.get((comp, pid))
-                            if img:
-                                ws_tc.insert_image(section_start+17, 1,
-                                                f"{comp}_{pid}.png",
-                                                {'image_data': img, 'x_scale': 0.75, 'y_scale': 0.75})
+                            if has_discharge:
+                                # wide table (A:F) - chart goes below it
+                                row_cursor += 23  # blank line after each component
+                                if img:
+                                    ws_tc.insert_image(section_start+17, 1,
+                                                    f"{comp}_{pid}.png",
+                                                    {'image_data': img, 'x_scale': 0.75, 'y_scale': 0.75})
+                            else:
+                                # narrow table (A:C) - put the chart beside it (column D)
+                                # instead of below, and tighten the vertical gap to match
+                                # (the chart, ~19 rows tall at this scale, is now the
+                                # tallest element of the section rather than the ~15-row
+                                # table, so only a small gap is needed after the table)
+                                row_cursor += 7
+                                if img:
+                                    ws_tc.insert_image(section_start, 3,
+                                                    f"{comp}_{pid}.png",
+                                                    {'image_data': img, 'x_scale': 0.75, 'y_scale': 0.75})
 
 
 
