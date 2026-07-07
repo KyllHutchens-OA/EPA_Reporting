@@ -1152,34 +1152,48 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
 
 
     # ── inline table via sub-select over VALUES ───────────────────────────────
+    # Note: Conductivity and Total Dissolved Solids are measured on the SAME
+    # physical sample, so once their component names are harmonised back into
+    # the single "Conductivity & Total Dissolved Solids" requirement, the
+    # GROUP BY / COUNT must operate on that harmonised name (and count unique
+    # sample dates) — otherwise the two components each get counted and
+    # grouped separately, producing two duplicate rows for one requirement
+    # with the sample count split across them.
     sql = f"""
     WITH TempSamplingPoints AS (
         SELECT *
         FROM (VALUES
             {values_clause}
         ) AS v(SamplingPointID, ComponentName)
+    ),
+    Mapped AS (
+        SELECT
+            vw.SamplingPointID,
+            vw.SampledDate,
+            CASE
+                WHEN vw.[ComponentName] LIKE '%Conductivity%'
+                     OR vw.[ComponentName] LIKE '%Dissolved Solids%'
+                THEN 'Conductivity & Total Dissolved Solids'
+                ELSE vw.[ComponentName]
+            END AS [ComponentName]
+        FROM [WaterScope].[dbo].[vwCrystalResults] AS vw
+        INNER JOIN TempSamplingPoints AS t
+            ON vw.SamplingPointID = t.SamplingPointID
+           AND vw.ComponentName   COLLATE SQL_Latin1_General_CP1_CI_AS
+                                 = t.ComponentName
+        WHERE vw.SampledDate BETWEEN ? AND ?
     )
     SELECT
-        vw.SamplingPointID,
-            CASE 
-        WHEN vw.[ComponentName] LIKE '%Conductivity%' 
-             OR vw.[ComponentName] LIKE '%Dissolved Solids%' 
-        THEN 'Conductivity & Total Dissolved Solids'
-        ELSE vw.[ComponentName]
-    END AS [ComponentName],
-        COUNT(*) AS Taken_Samples
-    FROM [WaterScope].[dbo].[vwCrystalResults] AS vw
-    INNER JOIN TempSamplingPoints AS t
-        ON vw.SamplingPointID = t.SamplingPointID
-       AND vw.ComponentName   COLLATE SQL_Latin1_General_CP1_CI_AS
-                             = t.ComponentName
-    WHERE vw.SampledDate BETWEEN ? AND ?
+        SamplingPointID,
+        ComponentName,
+        COUNT(DISTINCT SampledDate) AS Taken_Samples
+    FROM Mapped
     GROUP BY
-        vw.SamplingPointID,
-        vw.ComponentName
+        SamplingPointID,
+        ComponentName
     ORDER BY
-        vw.SamplingPointID,
-        vw.ComponentName;
+        SamplingPointID,
+        ComponentName;
     """
 
     start_date = f"{fy_start}-07-01"
