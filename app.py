@@ -46,6 +46,7 @@ from report_functions import (
     create_flow_charts,
     get_testing_components_data,
     get_site_incidents_data,
+    get_site_incidents_summary,
     get_comments_data,
     load_monitoring_plan_requirements,
     write_monitoring_program_sheet
@@ -901,12 +902,14 @@ def run_report():
 
                     # --- Site Incidents ---
                     print("inc_df = get_site_incidents_data(report_name, start_dt, end_dt)")
-                    inc_df = get_site_incidents_data(report_name, start_dt, end_dt)
-                    
+                    inc_df      = get_site_incidents_data(report_name, start_dt, end_dt)
+                    inc_summary = get_site_incidents_summary(report_name, start_dt, end_dt)
+
+                    table_startrow = 7
                     inc_df.to_excel(writer,
                                     sheet_name='Site Incidents',
                                     index=False,
-                                    startrow=2)
+                                    startrow=table_startrow)
 
                     ws_inc = writer.sheets['Site Incidents']
                     ws_inc.set_column('A:A', 20)
@@ -914,27 +917,68 @@ def run_report():
                     ws_inc.set_column('C:C', 25)
                     ws_inc.set_column('D:D', 35)
                     ws_inc.set_column('E:G', 20)
-                    
+
                     header_fmt = writer.book.add_format({
                         'bold': True, 'bg_color': '#dedbd2', 'border': 1,
                         'align': 'center', 'font': 'Century Gothic'
                     })
-                    ws_inc.write_row(2, 0, inc_df.columns.tolist(), header_fmt)
+                    ws_inc.write_row(table_startrow, 0, inc_df.columns.tolist(), header_fmt)
+
+                    # overwrite the body rows (written by to_excel with the default
+                    # font) so the table content matches the rest of the document
+                    inc_body_fmt = writer.book.add_format({'border': 1, 'font': 'Century Gothic'})
+                    inc_date_fmt = writer.book.add_format({
+                        'border': 1, 'font': 'Century Gothic',
+                        'num_format': 'YYYY-MM-DD HH:MM:SS'
+                    })
+                    date_col = inc_df.columns.get_loc('Incident Date Time')
+                    for r, row in enumerate(inc_df.itertuples(index=False), start=table_startrow + 1):
+                        for c, value in enumerate(row):
+                            fmt = inc_date_fmt if c == date_col else inc_body_fmt
+                            ws_inc.write(r, c, value, fmt)
 
                     # overwrite the header row (row index 2) with the format
                     ws_inc.write('A1', 'Site Incidents',
                                 writer.book.add_format({'bold': True,
                                                         'font_size': 15,
                                                         'font': 'Century Gothic'}))
+
+                    # --- Summary table (counts by classification) ---
+                    inc_summary_label_fmt = writer.book.add_format({
+                        'bold': True, 'bg_color': '#dedbd2', 'border': 1, 'font': 'Century Gothic'
+                    })
+                    inc_summary_count_fmt = writer.book.add_format({
+                        'border': 1, 'align': 'center', 'font': 'Century Gothic'
+                    })
+                    summary_rows = [
+                        ('Number of Priority Type 1 incidents', inc_summary['Priority Type 1']),
+                        ('Number of Type 1 incidents',          inc_summary['Type 1']),
+                        ('Number of Type 2 incidents',          inc_summary['Type 2']),
+                        ('Number of TARP incidents',            inc_summary['TARP']),
+                    ]
+                    for i, (label, count) in enumerate(summary_rows):
+                        ws_inc.write(2 + i, 0, label, inc_summary_label_fmt)
+                        ws_inc.write(2 + i, 1, count, inc_summary_count_fmt)
+
                     # --- Comments ---
-                    get_comments_data(report_name, start_dt, end_dt) \
-                        .to_excel(writer, sheet_name='Comments', index=False, startrow=2)
+                    com_df = get_comments_data(report_name, start_dt, end_dt)
+                    com_df.to_excel(writer, sheet_name='Comments', index=False, startrow=2)
 
                     ws_com = writer.sheets['Comments']
                     ws_com.write('A1', 'Comments',
                                 writer.book.add_format({'bold': True,
                                                         'font_size': 15,
                                                         'font': 'Century Gothic'}))
+
+                    com_header_fmt = writer.book.add_format({
+                        'bold': True, 'bg_color': '#dedbd2', 'border': 1,
+                        'align': 'center', 'font': 'Century Gothic'
+                    })
+                    ws_com.write_row(2, 0, com_df.columns.tolist(), com_header_fmt)
+
+                    com_body_fmt = writer.book.add_format({'border': 1, 'font': 'Century Gothic'})
+                    for r, row in enumerate(com_df.itertuples(index=False), start=3):
+                        ws_com.write_row(r, 0, row, com_body_fmt)
 
                     
 

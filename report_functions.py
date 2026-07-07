@@ -445,7 +445,6 @@ def write_site_information(writer, report_name, start_dt, end_dt):
 
     ws.set_column('A:A', 40)
     ws.set_column('B:B', 100)
-    title_cell_fmt = wb.add_format({'bold': True, 'font_size': 15})
     ws.write('A1', 'Site Information', title_cell_fmt)
     row = 2
 
@@ -1026,10 +1025,14 @@ def get_comments_data(report_name: str,
 
     # 6) Return only the three columns requested
     return df_long[['Quarter','Comment Type','Comment']]
-def get_site_incidents_data(report_name: str,
-                            start_date: datetime,
-                            end_date:   datetime) -> pd.DataFrame:
-
+def _load_filtered_incidents(report_name: str,
+                              start_date: datetime,
+                              end_date:   datetime) -> pd.DataFrame:
+    """
+    Shared filtering logic for site incidents: date range, site match, and
+    classification/TARP relevance. Keeps the 'TARP' column so callers that
+    need it (e.g. summary counts) don't have to re-filter from scratch.
+    """
     from report_functions import load_sites
 
     # 1) load all incidents, parse the 'Incident Date Time' column
@@ -1049,8 +1052,8 @@ def get_site_incidents_data(report_name: str,
 
     # 3) find this site’s SAAM Name via sitedata.csv
     sites    = load_sites()
-    saam = next((s['saam_name'] 
-                 for s in sites 
+    saam = next((s['saam_name']
+                 for s in sites
                  if s['report_name'] == report_name),
                 None)
 
@@ -1061,10 +1064,40 @@ def get_site_incidents_data(report_name: str,
     mask_cls  = df['Primary Incident Classification'].isin(valid_cls)
     mask_tarp = df['TARP'].notna() & df['TARP'].astype(str).str.strip().ne('')
     df = df[mask_cls | mask_tarp]
+    return df
+
+def get_site_incidents_data(report_name: str,
+                            start_date: datetime,
+                            end_date:   datetime) -> pd.DataFrame:
+
+    df = _load_filtered_incidents(report_name, start_date, end_date)
     df = df.drop(columns=['TARP', 'Incident Count'])
+
+    # the source 'Date' column is actually the incident's financial year
+    # (e.g. "2023-2024"), so label it accordingly rather than "Date"
+    df = df.rename(columns={'Date': 'FY'})
 
     # 4) return same columns / order as the source file
     return df
+
+def get_site_incidents_summary(report_name: str,
+                                start_date: datetime,
+                                end_date:   datetime) -> dict:
+    """
+    Counts of incidents by classification/TARP for the summary table at the
+    top of the Site Incidents sheet, over the same filtered set of incidents
+    shown in the table below it.
+    """
+    df = _load_filtered_incidents(report_name, start_date, end_date)
+    cls = df['Primary Incident Classification']
+    mask_tarp = df['TARP'].notna() & df['TARP'].astype(str).str.strip().ne('')
+
+    return {
+        'Priority Type 1': int((cls == 'Priority Type 1').sum()),
+        'Type 1':          int((cls == 'Type 1').sum()),
+        'Type 2':          int((cls == 'Type 2').sum()),
+        'TARP':            int(mask_tarp.sum()),
+    }
 def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
     required = {'FY', 'SAMPLING_POINT', 'REPORTED_NAME', 'DESCRIPTION'}
     file_path = os.path.join(DATA_DIR, '2324MonitoringProgram.csv')
@@ -1152,34 +1185,48 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
 
 
     # ── inline table via sub-select over VALUES ───────────────────────────────
+    # Note: Conductivity and Total Dissolved Solids are measured on the SAME
+    # physical sample, so once their component names are harmonised back into
+    # the single "Conductivity & Total Dissolved Solids" requirement, the
+    # GROUP BY / COUNT must operate on that harmonised name (and count unique
+    # sample dates) — otherwise the two components each get counted and
+    # grouped separately, producing two duplicate rows for one requirement
+    # with the sample count split across them.
     sql = f"""
     WITH TempSamplingPoints AS (
         SELECT *
         FROM (VALUES
             {values_clause}
         ) AS v(SamplingPointID, ComponentName)
+    ),
+    Mapped AS (
+        SELECT
+            vw.SamplingPointID,
+            vw.SampledDate,
+            CASE
+                WHEN vw.[ComponentName] LIKE '%Conductivity%'
+                     OR vw.[ComponentName] LIKE '%Dissolved Solids%'
+                THEN 'Conductivity & Total Dissolved Solids'
+                ELSE vw.[ComponentName]
+            END AS [ComponentName]
+        FROM [WaterScope].[dbo].[vwCrystalResults] AS vw
+        INNER JOIN TempSamplingPoints AS t
+            ON vw.SamplingPointID = t.SamplingPointID
+           AND vw.ComponentName   COLLATE SQL_Latin1_General_CP1_CI_AS
+                                 = t.ComponentName
+        WHERE vw.SampledDate BETWEEN ? AND ?
     )
     SELECT
-        vw.SamplingPointID,
-            CASE 
-        WHEN vw.[ComponentName] LIKE '%Conductivity%' 
-             OR vw.[ComponentName] LIKE '%Dissolved Solids%' 
-        THEN 'Conductivity & Total Dissolved Solids'
-        ELSE vw.[ComponentName]
-    END AS [ComponentName],
-        COUNT(*) AS Taken_Samples
-    FROM [WaterScope].[dbo].[vwCrystalResults] AS vw
-    INNER JOIN TempSamplingPoints AS t
-        ON vw.SamplingPointID = t.SamplingPointID
-       AND vw.ComponentName   COLLATE SQL_Latin1_General_CP1_CI_AS
-                             = t.ComponentName
-    WHERE vw.SampledDate BETWEEN ? AND ?
+        SamplingPointID,
+        ComponentName,
+        COUNT(DISTINCT SampledDate) AS Taken_Samples
+    FROM Mapped
     GROUP BY
-        vw.SamplingPointID,
-        vw.ComponentName
+        SamplingPointID,
+        ComponentName
     ORDER BY
-        vw.SamplingPointID,
-        vw.ComponentName;
+        SamplingPointID,
+        ComponentName;
     """
 
     start_date = f"{fy_start}-07-01"
@@ -1256,6 +1303,7 @@ def write_monitoring_program_sheet(
     h_fmt  = wb.add_format({'bold': True, 'border': 1, 'bg_color': '#dedbd2','font': 'Century Gothic'})
     c_fmt  = wb.add_format({'border': 1,'font': 'Century Gothic'})
     title_fmt = wb.add_format({'bold': True, 'font_size': 15, 'font': 'Century Gothic','text_wrap': True})
+    note_fmt  = wb.add_format({'font_size': 11, 'font': 'Century Gothic', 'text_wrap': True, 'valign': 'top'})
 
     # Helper for FY text e.g. "2324" → "23-24"
     fmt = lambda tag: f"{tag[:2]}-{tag[2:]}"
@@ -1267,7 +1315,15 @@ def write_monitoring_program_sheet(
     ws.set_column('E:E', 29)
 
     ws.merge_range('A1:E1', 'Monitoring program', title_fmt)
-    ws.merge_range('A3:E3', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
+    ws.set_row(1, 30)
+    ws.merge_range(
+        'A2:E2',
+        'The approved monitoring plan pertaining to this site was adhered to during the '
+        'reporting period except where highlighted in the table below. Comments and '
+        'actions taken for these instances are provided.',
+        note_fmt
+    )
+    ws.merge_range('A4:E4', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
 
     # ---------------------------------------------------------------- current
     site_ids = [s['samplingpoint_id']
@@ -1304,7 +1360,7 @@ def write_monitoring_program_sheet(
     headers = ['Sampling Point Number', 'Sample Point Description',
                'Analyte', 'Number of Samples Required',
                'Number of Samples Taken']
-    start_r = 4
+    start_r = 5
     for c, h in enumerate(headers):
         ws.write(start_r, c, h, h_fmt)
     for r, row in enumerate(comp.itertuples(index=False), start=start_r + 1):
