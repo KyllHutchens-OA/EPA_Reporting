@@ -1270,6 +1270,7 @@ def write_monitoring_program_sheet(
     h_fmt  = wb.add_format({'bold': True, 'border': 1, 'bg_color': '#dedbd2','font': 'Century Gothic'})
     c_fmt  = wb.add_format({'border': 1,'font': 'Century Gothic'})
     title_fmt = wb.add_format({'bold': True, 'font_size': 15, 'font': 'Century Gothic','text_wrap': True})
+    note_fmt  = wb.add_format({'font_size': 11, 'font': 'Century Gothic', 'text_wrap': True, 'valign': 'top'})
 
     # Helper for FY text e.g. "2324" → "23-24"
     fmt = lambda tag: f"{tag[:2]}-{tag[2:]}"
@@ -1281,7 +1282,15 @@ def write_monitoring_program_sheet(
     ws.set_column('E:E', 29)
 
     ws.merge_range('A1:E1', 'Monitoring program', title_fmt)
-    ws.merge_range('A3:E3', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
+    ws.set_row(1, 30)
+    ws.merge_range(
+        'A2:E2',
+        'The approved monitoring plan pertaining to this site was adhered to during the '
+        'reporting period except where highlighted in the table below. Comments and '
+        'actions taken for these instances are provided.',
+        note_fmt
+    )
+    ws.merge_range('A4:E4', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
 
     # ---------------------------------------------------------------- current
     site_ids = [s['samplingpoint_id']
@@ -1318,7 +1327,7 @@ def write_monitoring_program_sheet(
     headers = ['Sampling Point Number', 'Sample Point Description',
                'Analyte', 'Number of Samples Required',
                'Number of Samples Taken']
-    start_r = 4
+    start_r = 5
     for c, h in enumerate(headers):
         ws.write(start_r, c, h, h_fmt)
     for r, row in enumerate(comp.itertuples(index=False), start=start_r + 1):
