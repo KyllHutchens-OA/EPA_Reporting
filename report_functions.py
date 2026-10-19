@@ -1110,6 +1110,11 @@ def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
     if not required.issubset({col.upper() for col in df.columns}):
         return pd.DataFrame(columns=['SamplingPointID', 'SamplePointDescription', 'Analyte', 'Min_Samples'])
 
+    # Report requirements for a replaced sampling point under its current ID
+    from waterscopequery import SAMPLING_POINT_SWAPS
+    df['SAMPLING_POINT'] = df['SAMPLING_POINT'].replace(
+        {old: new for old, new, _ in SAMPLING_POINT_SWAPS})
+
     df['REPORTED_NAME'] = df['REPORTED_NAME'].replace({
         'Biochemical Oxygen Demand - Total': 'Biochemical Oxygen Demand',
         'TKN as N': 'TKN as Nitrogen',
@@ -1181,17 +1186,17 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
         else:
             rows.append(f"({sp}, N'{comp}')")
 
-    # Mid-year sampling point swaps: also look up the replacement point, count its
-    # samples under the old ID from the effective date, and ignore the old point after it
+    # Mid-year sampling point swaps: also look up the former point, count its samples
+    # under the current ID before the effective date, and ignore it after
     from waterscopequery import SAMPLING_POINT_SWAPS
     swap_case, swap_where = "vw.SamplingPointID", ""
     for old, new, eff in SAMPLING_POINT_SWAPS:
-        for r_ in req_df[req_df['SamplingPointID'].astype(str) == old].itertuples(index=False):
+        for r_ in req_df[req_df['SamplingPointID'].astype(str) == new].itertuples(index=False):
             comp = r_.Analyte.replace("'", "''")
             for c in (["Conductivity", "Total Dissolved Solids"]
                       if comp == "Conductivity & Total Dissolved Solids" else [comp]):
-                rows.append(f"({int(new)}, N'{c}')")
-        swap_case = f"CASE WHEN vw.SamplingPointID = {int(new)} THEN {int(old)} ELSE {swap_case} END"
+                rows.append(f"({int(old)}, N'{c}')")
+        swap_case = f"CASE WHEN vw.SamplingPointID = {int(old)} THEN {int(new)} ELSE {swap_case} END"
         swap_where += (f" AND NOT (vw.SamplingPointID = {int(old)} AND vw.SampledDate >= '{eff}')"
                        f" AND NOT (vw.SamplingPointID = {int(new)} AND vw.SampledDate < '{eff}')")
     values_clause = ",\n        ".join(rows)

@@ -6,9 +6,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-# Sampling points that replaced another mid-year. Results for `new` are reported
-# under `old` from `effective` (Adelaide local, inclusive); `old` results from that
-# date onward are ignored. Add a tuple here for any future swap.
+# Sampling points that replaced another mid-year. sitedata.csv lists `new`; results
+# for `old` before `effective` (Adelaide local) are reported under `new`, `old`
+# results from that date onward are ignored, and `new` results before it are ignored.
+# Add a tuple here for any future swap.
 SAMPLING_POINT_SWAPS = [
     # (old_id, new_id, effective_date)
     ("93749", "93752", "2025-11-14"),   # Wirrina WWTP
@@ -48,11 +49,11 @@ def waterscope_data(conn, sampling_data, site, start_year, num_years):
         print("Sample TDS rows:")
         print(tds_rows.head())
 
-    # also query the replacement points, borrowing the old point's components
+    # also query the former points, borrowing the current point's components
     alias_rows = [
-        {**r, 'SamplingPointID': new}
+        {**r, 'SamplingPointID': old}
         for old, new, _ in SAMPLING_POINT_SWAPS
-        for r in sampling_data[sampling_data['SamplingPointID'].astype(str) == old]
+        for r in sampling_data[sampling_data['SamplingPointID'].astype(str) == new]
                               .to_dict('records')
     ]
     query_data = pd.concat([sampling_data, pd.DataFrame(alias_rows)], ignore_index=True) \
@@ -115,14 +116,15 @@ def waterscope_data(conn, sampling_data, site, start_year, num_years):
     sampling_data['SamplingPointID'] = sampling_data['SamplingPointID'].astype(str)
     df['SampledDate'] = pd.to_datetime(df['SampledDate'])
 
-    # apply mid-year sampling point swaps: old point before the date, new point from it
+    # apply mid-year sampling point swaps: old point before the date, new point from it,
+    # all reported under the new (sitedata.csv) ID
     for old, new, effective in SAMPLING_POINT_SWAPS:
         cutoff = pd.Timestamp(effective)
         sampled = pd.to_datetime(df['SampledDate'], utc=True).dt.tz_convert(adtz).dt.tz_localize(None)
         drop = ((df['SamplingPointID'] == old) & (sampled >= cutoff)) | \
                ((df['SamplingPointID'] == new) & (sampled < cutoff))
         df = df[~drop].copy()
-        df.loc[df['SamplingPointID'] == new, 'SamplingPointID'] = old
+        df.loc[df['SamplingPointID'] == old, 'SamplingPointID'] = new
 
     if df.empty:
         return pd.DataFrame()
