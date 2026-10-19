@@ -19,7 +19,8 @@ def to_utc(ts):
 
 def waterscope_data(conn, sampling_data, site, start_year, num_years):
     start_date = pd.Timestamp(f"{start_year}-07-01")
-    end_date   = pd.Timestamp(f"{start_year + num_years}-06-30")
+    # Exclusive upper bound: 1 July 00:00 so all of 30 June is included
+    end_date   = pd.Timestamp(f"{start_year + num_years}-07-01")
 
     # Normalise incoming bounds to Adelaide tz
     start_date = to_utc(start_date)
@@ -63,7 +64,8 @@ def waterscope_data(conn, sampling_data, site, start_year, num_years):
         vw.[ComponentName],
         vw.[SamplingPointDescription]
     FROM [WaterScope].[dbo].[vwCrystalResults] AS vw
-    WHERE vw.[SampledDate] BETWEEN ? AND ?
+    WHERE vw.[SampledDate] >= ? AND vw.[SampledDate] < ?
+      AND NOT (ISNULL(vw.[ResultPublishStatusName], '') = 'Withdrawn (cancelled)' AND vw.[ResultChar] IS NULL)
       AND EXISTS (
           SELECT 1
           FROM #TempSamplingPoints t

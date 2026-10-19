@@ -164,7 +164,7 @@ def create_flow_charts(pi_name, start_dt, end_dt, report_name, ys, ye):
     # 3) prepare current‐year pivot
     # raw['Timestamp'] = pd.to_datetime(raw['Timestamp'])
     raw['Timestamp'] = pd.to_datetime(raw['Timestamp'], errors='coerce', utc=True).dt.tz_convert(adtz)
-    mask = (raw['Timestamp'] >= start_dt) & (raw['Timestamp'] <= end_dt)
+    mask = (raw['Timestamp'] >= start_dt) & (raw['Timestamp'] < end_dt + pd.Timedelta(days=1))  # include all of 30 June
     cur  = raw.loc[mask].copy()
     cur['MonthNum']   = cur['Timestamp'].dt.month
     cur['MonthLabel'] = cur['Timestamp'].dt.strftime('%b')
@@ -392,7 +392,7 @@ def get_monthly_flow_data(report_name: str,
         return pd.DataFrame()
 
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-    mask = (df['Timestamp'] >= start_date) & (df['Timestamp'] <= end_date)
+    mask = (df['Timestamp'] >= start_date) & (df['Timestamp'] < pd.Timestamp(end_date) + pd.Timedelta(days=1))  # include all of 30 June
     df = df.loc[mask]
 
     df['Month'] = df['Timestamp'].dt.to_period('M').dt.to_timestamp()
@@ -1046,7 +1046,7 @@ def _load_filtered_incidents(report_name: str,
     # 2) filter by the datetime range
     mask = (
         (df['Incident Date Time'] >= pd.to_datetime(start_date)) &
-        (df['Incident Date Time'] <= pd.to_datetime(end_date))
+        (df['Incident Date Time'] < pd.to_datetime(end_date) + pd.Timedelta(days=1))
     )
     df = df.loc[mask].copy()
 
@@ -1214,7 +1214,8 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
             ON vw.SamplingPointID = t.SamplingPointID
            AND vw.ComponentName   COLLATE SQL_Latin1_General_CP1_CI_AS
                                  = t.ComponentName
-        WHERE vw.SampledDate BETWEEN ? AND ?
+        WHERE vw.SampledDate >= ? AND vw.SampledDate < ?
+          AND NOT (ISNULL(vw.ResultPublishStatusName, '') = 'Withdrawn (cancelled)' AND vw.ResultChar IS NULL)
     )
     SELECT
         SamplingPointID,
@@ -1230,7 +1231,7 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
     """
 
     start_date = f"{fy_start}-07-01"
-    end_date   = f"{fy_start + 1}-06-30"
+    end_date   = f"{fy_start + 1}-07-01"   # SampledDate < 1 July, so all of 30 June is included
     print("SQL being executed:\n", sql)
     print("Params:", start_date, end_date)
 
@@ -1312,18 +1313,18 @@ def write_monitoring_program_sheet(
     ws.set_column('B:B', 37)
     ws.set_column('C:C', 42)
     ws.set_column('D:D', 32)
-    ws.set_column('E:E', 29)
+    ws.set_column('E:F', 29)
 
-    ws.merge_range('A1:E1', 'Monitoring program', title_fmt)
+    ws.merge_range('A1:F1', 'Monitoring program', title_fmt)
     ws.set_row(1, 30)
     ws.merge_range(
-        'A2:E2',
+        'A2:F2',
         'The approved monitoring plan pertaining to this site was adhered to during the '
         'reporting period except where highlighted in the table below. Comments and '
         'actions taken for these instances are provided.',
         note_fmt
     )
-    ws.merge_range('A4:E4', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
+    ws.merge_range('A4:F4', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
 
     # ---------------------------------------------------------------- current
     site_ids = [s['samplingpoint_id']
@@ -1346,20 +1347,27 @@ def write_monitoring_program_sheet(
     req_curr['Analyte']         = req_curr['Analyte'].astype(str)
     taken_df['ComponentName']   = taken_df['ComponentName'].astype(str)
 
+    # Planned samples = required count rounded to the nearest standard frequency
+    # (4 quarterly, 12 monthly, 26 fortnightly, 52 weekly). Ties round up.
+    planned_levels = [4, 12, 26, 52]
+    def to_planned(n):
+        return min(planned_levels, key=lambda p: (abs(p - n), -p))
+
     comp = (
         req_curr.rename(columns={'Analyte': 'ComponentName'})
                 .merge(taken_df, on=['SamplingPointID', 'ComponentName'], how='left')
                 .fillna({'Taken_Samples': 0})
                 .rename(columns={'ComponentName': 'Analyte'})
                 .assign(Min_Samples=lambda d: d['Min_Samples'].astype(int))
+                .assign(Planned_Samples=lambda d: d['Min_Samples'].map(to_planned))
                 [['SamplingPointID', 'SamplePointDescription',
-                  'Analyte', 'Min_Samples', 'Taken_Samples']]
+                  'Analyte', 'Min_Samples', 'Planned_Samples', 'Taken_Samples']]
     )
 
     # Write compliance table
     headers = ['Sampling Point Number', 'Sample Point Description',
                'Analyte', 'Number of Samples Required',
-               'Number of Samples Taken']
+               'Planned Samples', 'Number of Samples Taken']
     start_r = 5
     for c, h in enumerate(headers):
         ws.write(start_r, c, h, h_fmt)
@@ -1393,7 +1401,7 @@ def write_monitoring_program_sheet(
 
     start = start_r + 2 + len(comp)
     ws.merge_range(
-        start, 0, start, 4,
+        start, 0, start, 5,
         f"Changes to the program from FY{fmt(fy_tag_curr)} to FY{fmt(fy_tag_next)}",
         t_fmt
     )
@@ -1424,7 +1432,7 @@ def write_monitoring_program_sheet(
 
     start_prev = next_end + 1
     ws.merge_range(
-        start_prev, 0, start_prev, 4,
+        start_prev, 0, start_prev, 5,
         f"Changes to the program from FY{fmt(fy_tag_prev)} to FY{fmt(fy_tag_curr)}",
         t_fmt
     )

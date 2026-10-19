@@ -642,13 +642,15 @@ def run_report():
                             sum_fmt_0dp = writer.book.add_format({**base_sum_fmt, 'num_format': '0'})
                             sum_fmt_2dp = writer.book.add_format({**base_sum_fmt, 'num_format': '0.00'})
                             sum_fmt_4dp = writer.book.add_format({**base_sum_fmt, 'num_format': '0.0000'})
-
-
-
+                            grey_sum_fmt = writer.book.add_format({**base_sum_fmt, 'bg_color': '#BFBFBF'})
 
                             ws_tc.write(row_cursor, 0, 'SUM', header_fmt)
 
-                            for col_idx in range(1, len(headers)):
+                            # Summing concentrations isn't meaningful: merge the two
+                            # concentration cells into one greyed-out, empty cell
+                            ws_tc.merge_range(row_cursor, 1, row_cursor, 2, '', grey_sum_fmt)
+
+                            for col_idx in range(3, len(headers)):
                                 # Target column index on the sheet
                                 tgt_col = col_idx
                                 col_letter = xl_col_to_name(tgt_col)                     # e.g., 'H', 'AA', ...
@@ -831,76 +833,6 @@ def run_report():
                                             ws_tc.write(row_cursor, col_idx+7, val, cell_fmt)
                                     row_cursor += 1
 
-                                # SUM row
-
-                                # Base style for SUM cells (adjust to your taste)
-                                from xlsxwriter.utility import xl_col_to_name
-                                base_sum_fmt = {'bold': True,'border': 1, 'align': 'center', 'font': 'Century Gothic'}
-
-                                # Two number formats
-                                sum_fmt_0dp = writer.book.add_format({**base_sum_fmt, 'num_format': '0'})
-                                sum_fmt_2dp = writer.book.add_format({**base_sum_fmt, 'num_format': '0.00'})
-                                sum_fmt_4dp = writer.book.add_format({**base_sum_fmt, 'num_format': '0.0000'})
-
-
-
-
-                                ws_tc.write(row_cursor, 7, 'SUM', header_fmt)
-
-                                for col_idx in range(1, len(headers)):
-                                    # Target column index on the sheet
-                                    tgt_col = col_idx + 7
-                                    col_letter = xl_col_to_name(tgt_col)                     # e.g., 'H', 'AA', ...
-                                    first_row  = row_cursor - len(table) + 1                 # 1-based row for Excel formula
-                                    last_row   = row_cursor                                  # 1-based row for Excel formula
-
-                                    # Write the SUM formula with default 2dp format
-                                    ws_tc.write_formula(
-                                        row_cursor, tgt_col,
-                                        f"=SUM({col_letter}{first_row}:{col_letter}{last_row})",
-                                        sum_fmt_2dp
-                                    )
-
-                                    # Apply conditional format to switch to 4dp when |value| < 0.01
-                                    # Build the cell address for the condition (Excel is 1-based rows)
-                                    cell_addr = f"{col_letter}{row_cursor + 1}"
-                                    ws_tc.conditional_format(row_cursor, tgt_col, row_cursor, tgt_col, {
-                                        'type': 'formula',
-                                        'criteria': f"={cell_addr}=0",
-                                        'format': sum_fmt_0dp
-                                    })
-
-                                    # < 0.01 (but not 0) → 4 dp
-                                    ws_tc.conditional_format(row_cursor, tgt_col, row_cursor, tgt_col, {
-                                        'type': 'formula',
-                                        'criteria': f"=AND(ABS({cell_addr})<0.01,{cell_addr}<>0)",
-                                        'format': sum_fmt_4dp
-                                    })
-
-                                    # ≥ 0.01 → 2 dp
-                                    ws_tc.conditional_format(row_cursor, tgt_col, row_cursor, tgt_col, {
-                                        'type': 'formula',
-                                        'criteria': f"=ABS({cell_addr})>=0.01",
-                                        'format': sum_fmt_2dp
-                                    })
-
-                                    # ws_tc.conditional_format(row_cursor, tgt_col, row_cursor, tgt_col, {
-                                    #     'type': 'formula',
-                                    #     'criteria': f"=ABS({cell_addr})<0.1",
-                                    #     'format': sum_fmt_4dp
-                                    # })
-                                    
-
-
-                                # for col_idx in range(1, len(headers)):
-                                #     col_letter  = chr(65 + col_idx+7)                  # B … F
-                                #     first_row   = row_cursor - len(table) + 1
-                                #     last_row    = row_cursor
-                                #     ws_tc.write_formula(
-                                #         row_cursor, col_idx+7,
-                                #         f"=SUM({col_letter}{first_row}:{col_letter}{last_row})",
-                                #         sum_fmt
-                                #     )
                                 row_cursor += 30  # blank line after each component
                                 print("teesting")
 
