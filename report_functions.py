@@ -1181,6 +1181,19 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
         else:
             rows.append(f"({sp}, N'{comp}')")
 
+    # Mid-year sampling point swaps: also look up the replacement point, count its
+    # samples under the old ID from the effective date, and ignore the old point after it
+    from waterscopequery import SAMPLING_POINT_SWAPS
+    swap_case, swap_where = "vw.SamplingPointID", ""
+    for old, new, eff in SAMPLING_POINT_SWAPS:
+        for r_ in req_df[req_df['SamplingPointID'].astype(str) == old].itertuples(index=False):
+            comp = r_.Analyte.replace("'", "''")
+            for c in (["Conductivity", "Total Dissolved Solids"]
+                      if comp == "Conductivity & Total Dissolved Solids" else [comp]):
+                rows.append(f"({int(new)}, N'{c}')")
+        swap_case = f"CASE WHEN vw.SamplingPointID = {int(new)} THEN {int(old)} ELSE {swap_case} END"
+        swap_where += (f" AND NOT (vw.SamplingPointID = {int(old)} AND vw.SampledDate >= '{eff}')"
+                       f" AND NOT (vw.SamplingPointID = {int(new)} AND vw.SampledDate < '{eff}')")
     values_clause = ",\n        ".join(rows)
 
 
@@ -1201,7 +1214,7 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
     ),
     Mapped AS (
         SELECT
-            vw.SamplingPointID,
+            {swap_case} AS SamplingPointID,
             vw.SampledDate,
             CASE
                 WHEN vw.[ComponentName] LIKE '%Conductivity%'
@@ -1215,7 +1228,7 @@ def query_compliance_counts(conn, req_df: pd.DataFrame, fy_start: int) -> pd.Dat
            AND vw.ComponentName   COLLATE SQL_Latin1_General_CP1_CI_AS
                                  = t.ComponentName
         WHERE vw.SampledDate >= ? AND vw.SampledDate < ?
-          AND NOT (ISNULL(vw.ResultPublishStatusName, '') = 'Withdrawn (cancelled)' AND vw.ResultChar IS NULL)
+          AND NOT (ISNULL(vw.ResultPublishStatusName, '') = 'Withdrawn (cancelled)' AND vw.ResultChar IS NULL){swap_where}
     )
     SELECT
         SamplingPointID,
