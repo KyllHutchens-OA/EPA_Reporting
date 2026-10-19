@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## EPA Annual Reporting Documentation ##
 v1.0 12/05/2025 - Kyll Hutchens
 #### To Do ####
@@ -82,3 +83,6 @@ The web page that launches when you start the code should have four options
         &nbsp; Once all the other tabs are complete, the report for *One* or *All* sites reports can be generated
         &nbsp; For the date range, always select first of financial year 01/07/YYYY to end of FY 30/06/YYYY
         &nbsp; All files are created and saved in the `Reports` folder within the project directory
+=======
+# EPA_Reporting
+>>>>>>> c1180a718ae5795c4c738ee3016ed43f2b937640
