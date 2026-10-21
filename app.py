@@ -540,6 +540,9 @@ def run_report():
                     five_yr_headers = {'5-yr Average Concentration (mg/L)',
                                        '5-yr Average Loading (kg/month)'}
 
+                    # first row of each left-hand section, so the 5-FY tables line up with them
+                    section_rows = {}
+
                     # PIDs that actually have data
                     pids_with_data = sorted(df_tc['SamplingPointID'].unique())
 
@@ -553,6 +556,7 @@ def run_report():
                                 continue
 
                             section_start = row_cursor
+                            section_rows[(pid, comp)] = section_start
                             desc          = pid_to_desc_map.get(pid, 'Unknown Location')
                             plain = comp in no_chart_comps
                             comp_headers = ([h for h in headers if h not in five_yr_headers]
@@ -778,6 +782,11 @@ def run_report():
                                 if comp not in df_pid_specific.columns:# or df_pid_specific[comp].fillna(0).sum() == 0:
                                     continue
 
+                                # no FY table for these: current-FY table only, on the left
+                                if comp in no_chart_comps:
+                                    continue
+
+                                row_cursor = section_rows.get((pid, comp), row_cursor)
                                 section_start = row_cursor
                                 desc          = pid_to_desc_map.get(pid, 'Unknown Location')
                                 ws_tc.merge_range(
