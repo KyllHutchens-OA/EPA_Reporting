@@ -1384,8 +1384,8 @@ def write_monitoring_program_sheet(
 
     # Write compliance table
     headers = ['Sampling Point Number', 'Sample Point Description',
-               'Analyte', 'Min. Number of Samples Required',
-               'Planned Samples', 'Number of Samples Taken']
+               'Analyte', 'Number of Samples Required',
+               'Min. Number of Samples Required', 'Number of Samples Taken']
     start_r = 5
     for c, h in enumerate(headers):
         ws.write(start_r, c, h, h_fmt)
