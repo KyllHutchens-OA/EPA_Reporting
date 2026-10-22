@@ -1123,6 +1123,9 @@ def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
         'Microcystins': 'Microcystin toxins - Total (as m-LR eq)',
     })
 
+    # WaterScope names it "E. coli" (with a space)
+    df['REPORTED_NAME'] = df['REPORTED_NAME'].str.replace('E.coli', 'E. coli', regex=False)
+
     unwanted = [
         'Sodium Adsorption Ratio',
         'Metal Preparation - Total',
