@@ -1119,7 +1119,8 @@ def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
         'Biochemical Oxygen Demand - Total': 'Biochemical Oxygen Demand',
         'TKN as N': 'TKN as Nitrogen',
         'Chlorine': 'Chlorine - Total',
-        'Algal Count - Partial': 'Algal Biovolume',
+        'Algal Count - Partial': 'Geosmin-MIB producing BGA - Total',
+        'Microcystins': 'Microcystin toxins - Total (as m-LR eq)',
     })
 
     unwanted = [
@@ -1328,21 +1329,37 @@ def write_monitoring_program_sheet(
     fmt = lambda tag: f"{tag[:2]}-{tag[2:]}"
 
     # Layout ------------------------------------------------------------------
+    ws.set_column('A:A', 24)
     ws.set_column('B:B', 37)
     ws.set_column('C:C', 42)
     ws.set_column('D:D', 32)
     ws.set_column('E:F', 29)
 
     ws.merge_range('A1:F1', 'Monitoring program', title_fmt)
-    ws.set_row(1, 30)
-    ws.merge_range(
-        'A2:F2',
-        'The approved monitoring plan pertaining to this site was adhered to during the '
-        'reporting period except where highlighted in the table below. Comments and '
-        'actions taken for these instances are provided.',
-        note_fmt
-    )
-    ws.merge_range('A4:F4', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
+
+    # Monitoring Plan Details (from reportdetails.csv)
+    label_fmt = wb.add_format({'bold': True, 'border': 1, 'bg_color': '#dedbd2',
+                               'font': 'Century Gothic', 'text_wrap': True, 'valign': 'vcenter'})
+    value_fmt = wb.add_format({'border': 1, 'font': 'Century Gothic',
+                               'text_wrap': True, 'valign': 'vcenter'})
+
+    def clean(text):
+        # the CSV holds some UTF-8 text that was mis-decoded (e.g. an en dash as "â€“")
+        try:
+            return text.encode('cp1252').decode('utf-8')
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            return text
+
+    details = next((r for r in load_report_details() if r.get('Report Name') == site_name), {})
+    ws.merge_range('A2:F2', 'Monitoring Plan Details', t_fmt)
+    detail_rows = [('Monitoring Plan Title', 20), ('Monitoring Plan Approval Date', 32),
+                   ('Monitoring Plan Compliance', 48), ('Quality Assurance / Control', 110)]
+    for i, (field, height) in enumerate(detail_rows, start=2):
+        ws.set_row(i, height)
+        ws.write(i, 0, field, label_fmt)
+        ws.merge_range(i, 1, i, 5, clean(details.get(field, '') or ''), value_fmt)
+
+    ws.merge_range('A8:F8', f'Monitoring plan compliance – FY {fy_tag_curr}', t_fmt)
 
     # ---------------------------------------------------------------- current
     site_ids = [s['samplingpoint_id']
@@ -1386,7 +1403,7 @@ def write_monitoring_program_sheet(
     headers = ['Sampling Point Number', 'Sample Point Description',
                'Analyte', 'Number of Samples Required',
                'Min. Number of Samples Required', 'Number of Samples Taken']
-    start_r = 5
+    start_r = 9
     for c, h in enumerate(headers):
         ws.write(start_r, c, h, h_fmt)
     for r, row in enumerate(comp.itertuples(index=False), start=start_r + 1):
