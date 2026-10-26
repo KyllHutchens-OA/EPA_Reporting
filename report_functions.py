@@ -1126,10 +1126,16 @@ def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
         'Biochemical Oxygen Demand - Total': 'Biochemical Oxygen Demand',
         'TKN as N': 'TKN as Nitrogen',
         'Chlorine': 'Chlorine - Total',
-        'UV Transmittance - 254nm Filtered': 'UV Transmittance - 254nm (Filtered)',
+        'UV Transmittance - 254nm Filtered': 'Transmittance - 254nm (Filtered)',
         'Algal Count - Partial': 'Geosmin-MIB producing BGA - Total',
         'Microcystins': 'Microcystin Toxins - Total (as M-LR eq)',
     })
+
+    # Each partial algal count covers both BGA components, so list a Toxin producing BGA
+    # row alongside every Geosmin-MIB row (same sampling point, same required count)
+    geosmin = df[df['REPORTED_NAME'] == 'Geosmin-MIB producing BGA - Total'].copy()
+    geosmin['REPORTED_NAME'] = 'Toxin producing BGA - Total'
+    df = pd.concat([df, geosmin], ignore_index=True)
 
     # WaterScope names it "E. coli" (with a space)
     df['REPORTED_NAME'] = df['REPORTED_NAME'].str.replace('E.coli', 'E. coli', regex=False)
