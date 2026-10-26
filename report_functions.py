@@ -44,6 +44,12 @@ def load_sites():
     sites.sort(key=lambda s: s['report_name'].lower())
     return sites
 
+def build_selected_fy_window(end_dt, years=5):
+    end_dt = pd.Timestamp(end_dt)
+    asof_fy_end_year = (end_dt - pd.Timedelta(days=1)).to_period('Y-JUN').year
+    start_fy_end_year = asof_fy_end_year - years + 1
+    return [f"{y-1}-{y}" for y in range(start_fy_end_year, asof_fy_end_year + 1)]
+
 def create_flow_charts(pi_name, start_dt, end_dt, report_name, ys, ye):
     """
     Returns:
@@ -65,7 +71,7 @@ def create_flow_charts(pi_name, start_dt, end_dt, report_name, ys, ye):
     if pi_name.strip().lower() == 'mount burr wwtp':
         pi_name = 'Mount Burr WWWTP'
 
-    raw = PiDataRetrival(pi_name)
+    raw = PiDataRetrival(pi_name, end_date=end_dt)
 
         
     raw["Timestamp"] = pd.to_datetime(raw["Timestamp"])
@@ -152,7 +158,7 @@ def create_flow_charts(pi_name, start_dt, end_dt, report_name, ys, ye):
     if raw.empty:
         empty = pd.DataFrame(columns=['Month','Influent','Effluent','Reuse','Discharge'])
         empty2 = pd.DataFrame(columns=['Financial Year','Influent','Effluent','Reuse','Discharge'])
-        return empty, empty2,{},{}
+        return empty, empty2, {}, {}, empty2.copy()
 
     # 2) define fiscal months in order
     month_order = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun']
@@ -204,7 +210,7 @@ def create_flow_charts(pi_name, start_dt, end_dt, report_name, ys, ye):
 
     # Anchor to end_dt - 1 day so 1 July doesn’t spill into the next FY
     asof_fy_end_year = (end_dt - pd.Timedelta(days=1)).to_period('Y-JUN').year
-    last5 = [f"{y-1}-{y}" for y in range(asof_fy_end_year-6, asof_fy_end_year+1)]
+    last5 = build_selected_fy_window(end_dt)
 
     data_5_year = raw[raw['Financial Year'].isin(last5)].copy()
 
@@ -238,7 +244,7 @@ def create_flow_charts(pi_name, start_dt, end_dt, report_name, ys, ye):
 
 
     # 4) prepare 5-year average pivot
-    avg5 = calculate_5_year_average(raw)
+    avg5 = calculate_5_year_average(raw, end_date=end_dt)
     has_avg = not avg5.empty and avg5['Value'].ne(0).any()
     avg5['MonthLabel'] = avg5['Month'].apply(
         lambda m: pd.to_datetime(m, format='%m').strftime('%b')
@@ -387,7 +393,7 @@ def get_monthly_flow_data(report_name: str,
     """
     from PIChartFunctions import PiDataRetrival
 
-    df = PiDataRetrival(report_name)
+    df = PiDataRetrival(report_name, end_date=end_date)
     if df.empty:
         return pd.DataFrame()
 
@@ -497,7 +503,7 @@ def get_testing_components_data(report_name: str,
     """
     Return (df, images) for the "Testing Components Data" sheet.
 
-    • Millicent and Murray Bridge:
+    • Millicent, Murray Bridge and Wirrina:
         – One table per component (aggregated across its two PIDs, pseudo-PID 'ALL')
         – Concentration columns are averaged across sampling points
         – Loading columns, discharge flow, and 5-year avg loads are summed
@@ -519,7 +525,8 @@ def get_testing_components_data(report_name: str,
     ]
     MONTHS_FY   = ['Jul','Aug','Sep','Oct','Nov','Dec',
                    'Jan','Feb','Mar','Apr','May','Jun']
-    IS_MILLICENT_MURRAY = report_name.strip().lower() in ['millicent','murray bridge']
+    multi_pid_sites = {'millicent', 'murray bridge', 'wirrina'}
+    IS_MILLICENT_MURRAY = report_name.strip().lower() in multi_pid_sites
     flow_col      = 'Discharge to Environment'
 
     # -------------------------------------------------------------------- site / PID list
@@ -1119,8 +1126,9 @@ def load_monitoring_plan_requirements(fy_tag: str) -> pd.DataFrame:
         'Biochemical Oxygen Demand - Total': 'Biochemical Oxygen Demand',
         'TKN as N': 'TKN as Nitrogen',
         'Chlorine': 'Chlorine - Total',
+        'UV Transmittance - 254nm Filtered': 'UV Transmittance - 254nm (Filtered)',
         'Algal Count - Partial': 'Geosmin-MIB producing BGA - Total',
-        'Microcystins': 'Microcystin toxins - Total (as m-LR eq)',
+        'Microcystins': 'Microcystin Toxins - Total (as M-LR eq)',
     })
 
     # WaterScope names it "E. coli" (with a space)

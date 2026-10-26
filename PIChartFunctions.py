@@ -12,10 +12,19 @@ warnings.filterwarnings("ignore")
 SERVER_NAME   = "SAWPAF01"
 DATABASE_NAME = "PT Wastewater Performance"
 
-def PiDataRetrival(site_name_to_retrieve):
+def PiDataRetrival(site_name_to_retrieve, end_date=None):
     """
     Returns a DataFrame of raw PI values for the given site,
     with columns ['Site','Attribute','Timestamp','Value'].
+    
+    Parameters:
+    -----------
+    site_name_to_retrieve : str
+        The name of the site to retrieve data for
+    end_date : datetime, optional
+        The reporting end date. If None, uses current time.
+        Data retrieval starts at the beginning of the earliest financial year
+        needed to calculate the rolling 5-full-FY baseline.
     """
     attributes_of_interest = [
         "1 - Influent", "2 - Effluent",
@@ -23,35 +32,43 @@ def PiDataRetrival(site_name_to_retrieve):
     ]
     data_rows = []
 
-    with PI.PIAFDatabase(server=SERVER_NAME, database=DATABASE_NAME) as database:
-        wastewater = database.descendant("Wastewarter Treatment")
-        if not wastewater:
-            return pd.DataFrame(data_rows)
+    try:
+        with PI.PIAFDatabase(server=SERVER_NAME, database=DATABASE_NAME) as database:
+            wastewater = database.descendant("Wastewarter Treatment")
+            if not wastewater:
+                return pd.DataFrame(data_rows)
 
-        specific_site = wastewater.children.get(site_name_to_retrieve)
-        if not specific_site:
-            return pd.DataFrame(data_rows)
+            specific_site = wastewater.children.get(site_name_to_retrieve)
+            if not specific_site:
+                return pd.DataFrame(data_rows)
 
-        monthly = specific_site.children.get("Monthly Summary") or \
-                  specific_site.children.get("Monthly Summary (Contractor)")
-        if not monthly:
-            return pd.DataFrame(data_rows)
+            monthly = specific_site.children.get("Monthly Summary") or \
+                      specific_site.children.get("Monthly Summary (Contractor)")
+            if not monthly:
+                return pd.DataFrame(data_rows)
 
-        for attr in attributes_of_interest:
-            attribute = monthly.attributes.get(attr)
-            if not attribute:
-                continue
+            for attr in attributes_of_interest:
+                attribute = monthly.attributes.get(attr)
+                if not attribute:
+                    continue
 
-            end_time   = datetime.now()
-            start_time = end_time - timedelta(days=1825)
-            recorded = attribute.recorded_values(start_time=start_time, end_time=end_time)
-            for ts, val in recorded.items():
-                data_rows.append({
-                    "Site":      site_name_to_retrieve,
-                    "Attribute": attr,
-                    "Timestamp": ts,
-                    "Value":     val
-                })
+                # Use provided end_date or default to current time.
+                # The 5-year average uses the five full FYs prior to the report FY,
+                # so fetch from the earliest required FY start.
+                end_time = pd.Timestamp(end_date) if end_date is not None else pd.Timestamp.now()
+                asof_fy_end_year = (end_time - pd.Timedelta(days=1)).to_period('Y-JUN').year
+                latest_full_fy_end_year = asof_fy_end_year - 1
+                start_time = pd.Timestamp(year=latest_full_fy_end_year - 5, month=7, day=1)
+                recorded = attribute.recorded_values(start_time=start_time, end_time=end_time)
+                for ts, val in recorded.items():
+                    data_rows.append({
+                        "Site":      site_name_to_retrieve,
+                        "Attribute": attr,
+                        "Timestamp": ts,
+                        "Value":     val
+                    })
+    except AttributeError:
+        return pd.DataFrame(data_rows)
 
     df = pd.DataFrame(data_rows)
     if df.empty:
@@ -65,15 +82,41 @@ def PiDataRetrival(site_name_to_retrieve):
     df['Value']     = pd.to_numeric(df['Value'], errors='coerce')
     return df
 
-def calculate_5_year_average(df): # Changed the cuttoff from '2023-07-01' to '2024-07-01', assuming past 5 years wanted prior to reporting FY
+def calculate_5_year_average(df, end_date=None):
     """
-    Given a DataFrame from PiDataRetrival, returns a DataFrame
-    with monthly averages over the past 5 years.
+    Given a DataFrame from PiDataRetrival, returns monthly averages calculated
+    from exactly five complete financial years (Jul-Jun), dynamically anchored
+    to end_date.
+
+    Parameters:
+    -----------
+    df : DataFrame
+        Raw PI data from PiDataRetrival
+    end_date : datetime, optional
+        The reporting end date. If None, uses current time.
+        The five FYs used are the five complete FYs prior to the FY containing
+        end_date.
     """
     df = df.copy()
+    if df.empty:
+        return pd.DataFrame(columns=['Attribute', 'Month', 'Value'])
+
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce', utc=True)
-    cutoff = pd.to_datetime('2023-07-01', utc=True)
-    df = df[df['Timestamp'] < cutoff]
+    df = df.dropna(subset=['Timestamp'])
+
+    end_dt = pd.to_datetime(end_date, utc=True) if end_date else pd.Timestamp.now(tz='UTC')
+
+    # Anchor to end_dt - 1 day so 1 July belongs to the new report FY,
+    # then use the five complete FYs before that report FY.
+    asof_fy_end_year = (end_dt - pd.Timedelta(days=1)).to_period('Y-JUN').year
+    full_fy_end_years = list(range(asof_fy_end_year - 5, asof_fy_end_year))
+
+    df['FYEndYear'] = df['Timestamp'].dt.to_period('Y-JUN').dt.year
+    df = df[df['FYEndYear'].isin(full_fy_end_years)]
+
+    if df.empty:
+        return pd.DataFrame(columns=['Attribute', 'Month', 'Value'])
+
     df.loc[:, 'Month'] = df['Timestamp'].dt.month
     return df.groupby(['Attribute','Month'])['Value'].mean().reset_index()
 
