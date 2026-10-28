@@ -879,7 +879,11 @@ def run_report():
                     for r, row in enumerate(inc_df.itertuples(index=False), start=table_startrow + 1):
                         for c, value in enumerate(row):
                             fmt = inc_date_fmt if c == date_col else inc_body_fmt
-                            ws_inc.write(r, c, value, fmt)
+                            # empty cells come through as NaN/NaT, which write() rejects
+                            if pd.isna(value):
+                                ws_inc.write_blank(r, c, None, fmt)
+                            else:
+                                ws_inc.write(r, c, value, fmt)
 
                     # overwrite the header row (row index 2) with the format
                     ws_inc.write('A1', 'Site Incidents',
