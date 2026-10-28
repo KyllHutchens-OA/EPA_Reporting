@@ -534,15 +534,6 @@ def run_report():
                             '5-yr Average Concentration (mg/L)'
                         ]
 
-                    # Components shown without a chart or 5-yr average columns
-                    no_chart_comps = {'Copper - Total', 'Lead - Total',
-                                      'Total Dissolved Solids (by EC)', 'Zinc - Total'}
-                    five_yr_headers = {'5-yr Average Concentration (mg/L)',
-                                       '5-yr Average Loading (kg/month)'}
-
-                    # first row of each left-hand section, so the 5-FY tables line up with them
-                    section_rows = {}
-
                     # PIDs that actually have data
                     pids_with_data = sorted(df_tc['SamplingPointID'].unique())
 
@@ -556,27 +547,23 @@ def run_report():
                                 continue
 
                             section_start = row_cursor
-                            section_rows[(pid, comp)] = section_start
                             desc          = pid_to_desc_map.get(pid, 'Unknown Location')
-                            plain = comp in no_chart_comps
-                            comp_headers = ([h for h in headers if h not in five_yr_headers]
-                                            if plain else headers)
                             if has_discharge:                            
                                 ws_tc.merge_range(
-                                    row_cursor, 0, row_cursor, len(comp_headers) - 1,
+                                    row_cursor, 0, row_cursor, 5,
                                     f"{comp} – {desc} ({pid})",
                                     title_fmt
                                 )
                             else:                           
                                 ws_tc.merge_range(
-                                    row_cursor, 0, row_cursor, len(comp_headers) - 1,
+                                    row_cursor, 0, row_cursor, 2,
                                     f"{comp} – {desc} ({pid})",
                                     title_fmt2
                                 )                                
                             row_cursor += 1
 
                             # write column headers
-                            for col, h in enumerate(comp_headers):
+                            for col, h in enumerate(headers):
                                 ws_tc.write(row_cursor, col, h, header_fmt)
                             row_cursor += 1
 
@@ -609,7 +596,7 @@ def run_report():
                             #             ws_tc.write(row_cursor, col_idx, val, cell_fmt)
 
                             for _, row_data in table.iterrows():
-                                for col_idx, col_name in enumerate(comp_headers):
+                                for col_idx, col_name in enumerate(headers):
                                     val = row_data[col_name]
 
                                     # blanks / NaN / ±inf
@@ -661,12 +648,9 @@ def run_report():
 
                             # Summing concentrations isn't meaningful: merge the two
                             # concentration cells into one greyed-out, empty cell
-                            if plain:
-                                ws_tc.write_blank(row_cursor, 1, None, grey_sum_fmt)
-                            else:
-                                ws_tc.merge_range(row_cursor, 1, row_cursor, 2, '', grey_sum_fmt)
+                            ws_tc.merge_range(row_cursor, 1, row_cursor, 2, '', grey_sum_fmt)
 
-                            for col_idx in range(2 if plain else 3, len(comp_headers)):
+                            for col_idx in range(3, len(headers)):
                                 # Target column index on the sheet
                                 tgt_col = col_idx
                                 col_letter = xl_col_to_name(tgt_col)                     # e.g., 'H', 'AA', ...
@@ -711,10 +695,10 @@ def run_report():
                                 # })
 
                             # Chart
-                            img = None if plain else tc_images.get((comp, pid))
+                            img = tc_images.get((comp, pid))
                             if has_discharge:
                                 # wide table (A:F) - chart goes below it
-                                row_cursor += 3 if plain else 23  # blank line after each component
+                                row_cursor += 23  # blank line after each component
                                 if img:
                                     ws_tc.insert_image(section_start+17, 1,
                                                     f"{comp}_{pid}.png",
@@ -725,7 +709,7 @@ def run_report():
                                 # (the chart, ~19 rows tall at this scale, is now the
                                 # tallest element of the section rather than the ~15-row
                                 # table, so only a small gap is needed after the table)
-                                row_cursor += 3 if plain else 7
+                                row_cursor += 7
                                 if img:
                                     ws_tc.insert_image(section_start, 3,
                                                     f"{comp}_{pid}.png",
@@ -782,11 +766,6 @@ def run_report():
                                 if comp not in df_pid_specific.columns:# or df_pid_specific[comp].fillna(0).sum() == 0:
                                     continue
 
-                                # no FY table for these: current-FY table only, on the left
-                                if comp in no_chart_comps:
-                                    continue
-
-                                row_cursor = section_rows.get((pid, comp), row_cursor)
                                 section_start = row_cursor
                                 desc          = pid_to_desc_map.get(pid, 'Unknown Location')
                                 ws_tc.merge_range(
@@ -858,7 +837,7 @@ def run_report():
                                 print("teesting")
 
                                 #-------------------------------------------------------------------- 5 Yearly Chart
-                                img = None if comp in no_chart_comps else tc_images_5y.get((comp, pid))
+                                img = tc_images_5y.get((comp, pid))
                                 if img:
                                     ws_tc.insert_image(section_start+17, 7,
                                                     f"{comp}_{pid}.png",
