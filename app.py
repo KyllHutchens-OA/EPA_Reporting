@@ -465,6 +465,19 @@ def run_report():
                             .to_dict()
                     )
 
+                    # Sites with several sampling points (Millicent, Murray Bridge, Wirrina)
+                    # come back as one combined 'ALL' table, which has no description of
+                    # its own, so build one from the site's sampling points in sitedata.csv
+                    if 'ALL' in set(df_tc['SamplingPointID']):
+                        site_pts = pd.read_csv(SITE_FILE, dtype=str)
+                        site_pts = site_pts[site_pts['Report Name'] == report_name]
+                        non_reuse = site_pts[site_pts['Location Type'].str.lower() != 'reuse']
+                        if not non_reuse.empty:
+                            site_pts = non_reuse
+                        pid_to_desc_map['ALL'] = 'Combined – ' + ', '.join(
+                            f"{d} ({p})" for p, d in zip(site_pts['SamplingPointID'],
+                                                         site_pts['SamplingPointDescription']))
+
                     ws_tc = writer.book.add_worksheet('Testing Components Data')
                     writer.sheets['Testing Components Data'] = ws_tc
 
